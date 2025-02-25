@@ -342,6 +342,7 @@ jobs:
         name: backend-kubesec-reports
         path: kubesec-backend-*.json
         retention-days: 30
+  
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -350,7 +351,7 @@ jobs:
       run: |
         rm -rf ./*
         rm -rf ./.* || true
-
+    
     - name: Checkout Frontend Code
       uses: actions/checkout@v4
       with:
@@ -358,6 +359,7 @@ jobs:
         token: ${{ secrets.GH_PAT }}
         clean: true
         fetch-depth: 1
+        ref: main  # Explicitly checkout the main branch
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -370,7 +372,7 @@ jobs:
       run: |
         npm install --legacy-peer-deps
         npm cache verify
-
+    
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -380,16 +382,23 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Generate build timestamp
+      id: timestamp
+      run: echo "BUILD_TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
     - name: Build and Push Frontend Image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ env.FRONTEND_IMAGE }}:latest
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:latest
+          ${{ env.FRONTEND_IMAGE }}:${{ steps.timestamp.outputs.BUILD_TIMESTAMP }}
         build-args: |
           NODE_ENV=production
-        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
-        cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
+        # Disable cache usage to ensure fresh builds
+        no-cache: true
+        pull: true
 
   backend-build:
     runs-on: ubuntu-latest
@@ -398,7 +407,7 @@ jobs:
       run: |
         rm -rf ./*
         rm -rf ./.* || true
-
+    
     - name: Checkout Backend Code
       uses: actions/checkout@v4
       with:
@@ -406,6 +415,7 @@ jobs:
         token: ${{ secrets.GH_PAT }}
         clean: true
         fetch-depth: 1
+        ref: main  # Explicitly checkout the main branch
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -418,7 +428,7 @@ jobs:
       run: |
         npm install
         npm cache verify
-
+    
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -428,17 +438,23 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Generate build timestamp
+      id: timestamp
+      run: echo "BUILD_TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
     - name: Build and Push Backend Image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: ${{ env.BACKEND_IMAGE }}:latest
+        tags: |
+          ${{ env.BACKEND_IMAGE }}:latest
+          ${{ env.BACKEND_IMAGE }}:${{ steps.timestamp.outputs.BUILD_TIMESTAMP }}
         build-args: |
           NODE_ENV=production
-        cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
-        cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
-
+        # Disable cache usage to ensure fresh builds
+        no-cache: true
+        pull: true
   deploy:
     needs: [ frontend-build, backend-build ]
     runs-on: ubuntu-latest
