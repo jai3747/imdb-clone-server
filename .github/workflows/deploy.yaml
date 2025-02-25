@@ -343,7 +343,7 @@ jobs:
         path: kubesec-backend-*.json
         retention-days: 30
   
-
+  
   frontend-build:
     runs-on: ubuntu-latest
     steps:
@@ -384,16 +384,14 @@ jobs:
 
     - name: Generate build timestamp
       id: timestamp
-      run: echo "BUILD_TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+      run: echo "timestamp=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
     - name: Build and Push Frontend Image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: |
-          ${{ env.FRONTEND_IMAGE }}:latest
-          ${{ env.FRONTEND_IMAGE }}:${{ steps.timestamp.outputs.BUILD_TIMESTAMP }}
+        tags: ${{ env.FRONTEND_IMAGE }}:latest
         build-args: |
           NODE_ENV=production
         # Disable cache usage to ensure fresh builds
@@ -440,96 +438,16 @@ jobs:
 
     - name: Generate build timestamp
       id: timestamp
-      run: echo "BUILD_TIMESTAMP=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+      run: echo "timestamp=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
     - name: Build and Push Backend Image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: true
-        tags: |
-          ${{ env.BACKEND_IMAGE }}:latest
-          ${{ env.BACKEND_IMAGE }}:${{ steps.timestamp.outputs.BUILD_TIMESTAMP }}
+        tags: ${{ env.BACKEND_IMAGE }}:latest
         build-args: |
           NODE_ENV=production
         # Disable cache usage to ensure fresh builds
         no-cache: true
         pull: true
-  deploy:
-    needs: [ frontend-build, backend-build ]
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-      url: https://prod.frontend.jayachandran.xyz
-    steps:
-    - name: Clean workspace
-      run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
-      uses: actions/checkout@v4
-      with:
-        repository: jai3747/imdb-clone-backend
-        token: ${{ secrets.GH_PAT }}
-        clean: true
-        force: true
-
-    - name: Setup Kubernetes Tools
-      uses: ./.github/actions/k8s-setup
-      with:
-        helm-version: ${{ env.HELM_VERSION }}
-        gcp-credentials: ${{ secrets.GCP_SA_KEY }}
-        gcp-project-id: ${{ secrets.GCP_PROJECT_ID }}
-        cluster-name: ${{ env.CLUSTER_NAME }}
-        cluster-zone: ${{ env.CLUSTER_ZONE }}
-
-    # Add Helm repositories
-    - name: Add Helm Repositories
-      run: |
-        helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-        helm repo update
-
-    # Install NGINX Ingress Controller
-    - name: Install NGINX Ingress Controller
-      run: |
-        helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-          --namespace ingress-nginx \
-          --create-namespace \
-          --set controller.service.type=LoadBalancer \
-          --set controller.service.externalTrafficPolicy=Local \
-          --set controller.resources.requests.cpu=100m \
-          --set controller.resources.requests.memory=256Mi \
-          --set controller.resources.limits.cpu=200m \
-          --set controller.resources.limits.memory=512Mi \
-          --wait --timeout 5m
-
-    - name: Cache Helm dependencies
-      uses: actions/cache@v3
-      with:
-        path: ${{ env.CHART_PATH }}/charts
-        key: ${{ runner.os }}-helm-${{ hashFiles('**/Chart.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-helm-
-
-    - name: Update Helm Dependencies
-      run: |
-        cd ${{ env.CHART_PATH }}
-        helm dependency build
-        helm dependency update
-
-    # Deploy the application
-    - name: Deploy to Production
-      run: |
-        helm upgrade --install imdb-clone-prod ${{ env.CHART_PATH }} \
-          --set frontend.image.repository=jai3747/imdb-clone-frontend-prod \
-          --set frontend.image.tag=latest \
-          --set backend.image.repository=jai3747/imdb-clone-backend-prod \
-          --set backend.image.tag=latest \
-          --set mongodb.enabled=true \
-          --set mongodb.auth.enabled=true \
-          --set mongodb.auth.rootPassword=${{ secrets.MONGODB_ROOT_PASSWORD }} \
-          --set frontend.domain=prod.frontend.jayachandran.xyz \
-          --set backend.domain=prod.backend.jayachandran.xyz \
-          --values ./imdb-clone/values-prod.yaml \
-          --namespace production \
-          --create-namespace
