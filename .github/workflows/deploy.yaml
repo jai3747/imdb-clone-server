@@ -22,7 +22,7 @@ env:
   BACKEND_IMAGE: jai3747/imdb-clone-backend-prod
   HELM_VERSION: v3.12.0
   CHART_PATH: ./imdb-clone
-  BACKEND_API_URL: http://imdb-clone-backend.default.svc.cluster.local:5000
+  BACKEND_API_URL: http://34.93.196.67:5000
   DEBUG_WORKFLOW: 'true'
 
 jobs:
@@ -31,26 +31,31 @@ jobs:
     name: 🐷 Frontend TruffleHog
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Frontend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
+
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-client
+        repository: ${{ env.FRONTEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         fetch-depth: 0
         clean: true
-        force: true
+        ref: main
+
     - name: TruffleHog Scan
       uses: trufflesecurity/trufflehog@v3.63.3
       continue-on-error: true
       with:
-        path: .
+        path: ./frontend
         base: ${{ github.event.before }}
         head: ${{ github.sha }}
         extra_args: --json --output trufflehog-frontend-report.json
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -62,17 +67,21 @@ jobs:
     name: 🔍 Frontend Semgrep
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Frontend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
+
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-client
+        repository: ${{ env.FRONTEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         clean: true
-        force: true
+        ref: main
+
     - name: Semgrep Scan
       uses: semgrep/semgrep-action@v1
       continue-on-error: true
@@ -80,6 +89,10 @@ jobs:
         config: p/javascript
         output: semgrep-frontend-results.json
         json: true
+        publishToken: ${{ secrets.SEMGREP_TOKEN }}
+        publishDeployment: 123
+        workdir: ./frontend
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -91,17 +104,21 @@ jobs:
     name: 🛡️ Frontend Snyk
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Frontend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
+
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-client
+        repository: ${{ env.FRONTEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         clean: true
-        force: true
+        ref: main
+
     - name: Snyk Scan
       uses: snyk/actions/node@master
       continue-on-error: true
@@ -109,6 +126,9 @@ jobs:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
         command: test --json > snyk-frontend-report.json
+        args: --all-projects --sarif-file-output=snyk.sarif
+        working-directory: ./frontend
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -120,25 +140,30 @@ jobs:
     name: 🏗️ Frontend Checkov
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Frontend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
+
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-client
+        repository: ${{ env.FRONTEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         clean: true
-        force: true
+        ref: main
+
     - name: Checkov Scan
       uses: bridgecrewio/checkov-action@v12
       continue-on-error: true
       with:
-        directory: .
+        directory: ./frontend
         framework: dockerfile,kubernetes,secrets
         output: json
         output-file-path: checkov-frontend-report.json
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -150,35 +175,43 @@ jobs:
     name: 🎯 Frontend Kubesec
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Frontend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
+
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-client
+        repository: ${{ env.FRONTEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         clean: true
-        force: true
+        ref: main
+
     - name: Install kubesec
       run: |
         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
         tar xzf kubesec_linux_amd64.tar.gz
         sudo mv kubesec /usr/local/bin/
+
     - name: Run kubesec scans
       continue-on-error: true
       run: |
+        mkdir -p kubesec-reports
+        cd frontend
         for file in backup.yaml backup-pipeline.yaml pipeline.yaml; do
           if [ -f "$file" ]; then
-            kubesec scan -f json "$file" > "kubesec-frontend-$(basename "$file" .yaml)-report.json" || true
+            kubesec scan -f json "$file" > "../kubesec-reports/kubesec-frontend-$(basename "$file" .yaml)-report.json" || true
           fi
         done
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
         name: frontend-kubesec-reports
-        path: kubesec-frontend-*.json
+        path: kubesec-reports/
         retention-days: 30
 
   # Backend Security Scans
@@ -186,26 +219,31 @@ jobs:
     name: 🐷 Backend TruffleHog
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
+
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-server
+        repository: ${{ env.BACKEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: backend
         fetch-depth: 0
         clean: true
-        force: true
+        ref: main
+
     - name: TruffleHog Scan
       uses: trufflesecurity/trufflehog@v3.63.3
       continue-on-error: true
       with:
-        path: .
+        path: ./backend
         base: ${{ github.event.before }}
         head: ${{ github.sha }}
         extra_args: --json --output trufflehog-backend-report.json
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -217,17 +255,21 @@ jobs:
     name: 🔍 Backend Semgrep
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
+
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-server
+        repository: ${{ env.BACKEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: backend
         clean: true
-        force: true
+        ref: main
+
     - name: Semgrep Scan
       uses: semgrep/semgrep-action@v1
       continue-on-error: true
@@ -235,6 +277,10 @@ jobs:
         config: p/javascript
         output: semgrep-backend-results.json
         json: true
+        publishToken: ${{ secrets.SEMGREP_TOKEN }}
+        publishDeployment: 123
+        workdir: ./backend
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -246,17 +292,21 @@ jobs:
     name: 🛡️ Backend Snyk
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
+
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-server
+        repository: ${{ env.BACKEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: backend
         clean: true
-        force: true
+        ref: main
+
     - name: Snyk Scan
       uses: snyk/actions/node@master
       continue-on-error: true
@@ -264,6 +314,9 @@ jobs:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       with:
         command: test --json > snyk-backend-report.json
+        args: --all-projects --sarif-file-output=snyk.sarif
+        working-directory: ./backend
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -275,25 +328,30 @@ jobs:
     name: 🏗️ Backend Checkov
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
+
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-server
+        repository: ${{ env.BACKEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: backend
         clean: true
-        force: true
+        ref: main
+
     - name: Checkov Scan
       uses: bridgecrewio/checkov-action@v12
       continue-on-error: true
       with:
-        directory: .
+        directory: ./backend
         framework: dockerfile,kubernetes,secrets
         output: json
         output-file-path: checkov-backend-report.json
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -305,66 +363,83 @@ jobs:
     name: 🎯 Backend Kubesec
     runs-on: ubuntu-latest
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf *
-        rm -rf .git
-    - name: Checkout Backend Code
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
+
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
-        repository: jai3747/imdb-clone-server
+        repository: ${{ env.BACKEND_REPO }}
         token: ${{ secrets.GH_PAT }}
+        path: backend
         clean: true
-        force: true
+        ref: main
+
+    - name: Checkout Main Repo for Helm Charts
+      uses: actions/checkout@v4
+      with:
+        path: main-repo
+        clean: true
+        ref: main
+
     - name: Install kubesec
       run: |
         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
         tar xzf kubesec_linux_amd64.tar.gz
         sudo mv kubesec /usr/local/bin/
+
     - name: Install Helm
       uses: azure/setup-helm@v3
       with:
         version: 'v3.12.3'
+
     - name: Create merged Helm templates
       run: |
-        helm template imdb-clone ./imdb-clone > all-manifests.yaml || true
+        if [ -d "main-repo/imdb-clone" ]; then
+          cd main-repo
+          helm template imdb-clone ./imdb-clone > ../all-manifests.yaml || true
+        else
+          echo "Helm chart directory not found, skipping helm template scan"
+        fi
+
     - name: Run kubesec scans
       continue-on-error: true
       run: |
+        mkdir -p kubesec-reports
+        cd backend
         for file in k8.yaml test-working-fine.yaml all-tested-pipeline.yaml; do
           if [ -f "$file" ]; then
-            kubesec scan -f json "$file" > "kubesec-backend-$(basename "$file" .yaml)-report.json" || true
+            kubesec scan -f json "$file" > "../kubesec-reports/kubesec-backend-$(basename "$file" .yaml)-report.json" || true
           fi
         done
-
+        cd ..
+        
         if [ -f "all-manifests.yaml" ]; then
-          kubesec scan -f json all-manifests.yaml > kubesec-backend-helm-report.json || true
+          kubesec scan -f json all-manifests.yaml > kubesec-reports/kubesec-backend-helm-report.json || true
         fi
+
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
         name: backend-kubesec-reports
-        path: kubesec-backend-*.json
+        path: kubesec-reports/
         retention-days: 30
-  
   
   frontend-build:
     name: 🚀 Frontend Build & Push
     runs-on: ubuntu-latest
-    # Removing dependency on security scans for now to speed up debugging
-    # needs: [frontend-trufflehog, frontend-semgrep, frontend-snyk, frontend-checkov, frontend-kubesec]
+    needs: [frontend-trufflehog, frontend-semgrep, frontend-snyk, frontend-checkov, frontend-kubesec]
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf ./*
-        rm -rf ./.* || true
-    
-    # Checkout the main repository first (the one where the pipeline is running)
-    - name: Checkout Main Repo
-      uses: actions/checkout@v4
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/frontend
       
-    # Now checkout the frontend code with clean workspace option
-    # Using explicit ref: main to ensure we get the latest code
+    # Fresh checkout of the frontend repository
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -375,11 +450,11 @@ jobs:
         fetch-depth: 1
         ref: main
 
-    - name: List files to verify checkout
+    - name: Verify clean checkout
       run: |
-        echo "Current directory:"
+        echo "Current directory structure:"
         ls -la
-        echo "Frontend directory:"
+        echo "Frontend directory content:"
         ls -la ./frontend
       
     - name: Setup Node.js
@@ -389,11 +464,14 @@ jobs:
         cache: 'npm'
         cache-dependency-path: './frontend/package-lock.json'
 
+    - name: Clear npm cache
+      run: npm cache clean --force
+
     - name: Install Frontend Dependencies
       working-directory: ./frontend
       run: |
-        npm install --legacy-peer-deps
-        npm cache verify
+        rm -rf node_modules
+        npm ci --no-cache --legacy-peer-deps
     
     # Configure API endpoint for production
     - name: Configure Environment
@@ -403,10 +481,13 @@ jobs:
         # Create or update .env file with the backend service URL
         echo "REACT_APP_API_URL=${{ env.BACKEND_API_URL }}" > .env
         echo "REACT_APP_API_TIMEOUT=30000" >> .env
+        echo "Environment configuration:"
         cat .env
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        buildkitd-flags: --debug
 
     - name: Login to DockerHub
       uses: docker/login-action@v3
@@ -437,19 +518,15 @@ jobs:
   backend-build:
     name: 🚀 Backend Build & Push
     runs-on: ubuntu-latest
-    # Removing dependency on security scans for now to speed up debugging
-    # needs: [backend-trufflehog, backend-semgrep, backend-snyk, backend-checkov, backend-kubesec]
+    needs: [backend-trufflehog, backend-semgrep, backend-snyk, backend-checkov, backend-kubesec]
     steps:
-    - name: Clean workspace
+    - name: Completely clean workspace
       run: |
-        rm -rf ./*
-        rm -rf ./.* || true
+        rm -rf $GITHUB_WORKSPACE/*
+        rm -rf $GITHUB_WORKSPACE/.[!.]*
+        mkdir -p $GITHUB_WORKSPACE/backend
     
-    # Checkout the main repository first (the one where the pipeline is running)
-    - name: Checkout Main Repo
-      uses: actions/checkout@v4
-      
-    # Now checkout the backend code with clean workspace option
+    # Fresh checkout of the backend repository
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -460,11 +537,11 @@ jobs:
         fetch-depth: 1
         ref: main
 
-    - name: List files to verify checkout
+    - name: Verify clean checkout
       run: |
-        echo "Current directory:"
+        echo "Current directory structure:"
         ls -la
-        echo "Backend directory:"
+        echo "Backend directory content:"
         ls -la ./backend
 
     - name: Setup Node.js
@@ -474,14 +551,19 @@ jobs:
         cache: 'npm'
         cache-dependency-path: './backend/package-lock.json'
 
+    - name: Clear npm cache
+      run: npm cache clean --force
+
     - name: Install Backend Dependencies
       working-directory: ./backend
       run: |
-        npm install
-        npm cache verify
+        rm -rf node_modules
+        npm ci --no-cache
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        buildkitd-flags: --debug
 
     - name: Login to DockerHub
       uses: docker/login-action@v3
