@@ -437,8 +437,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: "18"
-        # Disable npm cache to ensure fresh install
-        cache: 'none'
+        # Fixed: Removed the invalid 'cache: none' parameter
 
     - name: Install Frontend Dependencies
       working-directory: $HOME/fresh-workspace/frontend
@@ -446,7 +445,7 @@ jobs:
         # Make sure there's no node_modules
         rm -rf node_modules || true
         # Install dependencies without using cache
-        npm ci --no-cache --legacy-peer-deps
+        npm ci --legacy-peer-deps
     
     # Configure API endpoint for production
     - name: Configure Environment
@@ -521,8 +520,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: "18"
-        # Disable npm cache to ensure fresh install
-        cache: 'none'
+        # Fixed: Removed the invalid 'cache: none' parameter
 
     - name: Install Backend Dependencies
       working-directory: $HOME/fresh-workspace/backend
@@ -530,7 +528,7 @@ jobs:
         # Make sure there's no node_modules
         rm -rf node_modules || true
         # Install dependencies without using cache
-        npm ci --no-cache
+        npm ci
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -561,4 +559,3 @@ jobs:
         no-cache: true
         pull: true
         
-  
