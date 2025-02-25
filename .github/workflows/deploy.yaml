@@ -343,32 +343,41 @@ jobs:
         path: kubesec-backend-*.json
         retention-days: 30
   
-  
+  # Build the frontend image from latest code
   frontend-build:
+    name: 🚀 Frontend Build & Push
     runs-on: ubuntu-latest
+    needs: [frontend-trufflehog, frontend-semgrep, frontend-snyk, frontend-checkov, frontend-kubesec]
     steps:
     - name: Clean workspace
       run: |
         rm -rf ./*
         rm -rf ./.* || true
     
-    - name: Checkout Frontend Code
+    # Checkout the main repository first (the one where the pipeline is running)
+    - name: Checkout Main Repo
+      uses: actions/checkout@v4
+      
+    # Now checkout the frontend code with clean workspace option
+    - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
         repository: jai3747/imdb-clone-client
         token: ${{ secrets.GH_PAT }}
+        path: frontend
         clean: true
         fetch-depth: 1
-        ref: main  # Explicitly checkout the main branch
+        ref: main
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: "18"
         cache: 'npm'
-        cache-dependency-path: './package-lock.json'
+        cache-dependency-path: './frontend/package-lock.json'
 
     - name: Install Frontend Dependencies
+      working-directory: ./frontend
       run: |
         npm install --legacy-peer-deps
         npm cache verify
@@ -389,40 +398,51 @@ jobs:
     - name: Build and Push Frontend Image
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: ./frontend
         push: true
-        tags: ${{ env.FRONTEND_IMAGE }}:latest
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:latest
+          ${{ env.FRONTEND_IMAGE }}:${{ steps.timestamp.outputs.timestamp }}
         build-args: |
           NODE_ENV=production
-        # Disable cache usage to ensure fresh builds
         no-cache: true
         pull: true
 
+  # Build the backend image from latest code
   backend-build:
+    name: 🚀 Backend Build & Push
     runs-on: ubuntu-latest
+    needs: [backend-trufflehog, backend-semgrep, backend-snyk, backend-checkov, backend-kubesec]
     steps:
     - name: Clean workspace
       run: |
         rm -rf ./*
         rm -rf ./.* || true
     
-    - name: Checkout Backend Code
+    # Checkout the main repository first (the one where the pipeline is running)
+    - name: Checkout Main Repo
+      uses: actions/checkout@v4
+      
+    # Now checkout the backend code with clean workspace option
+    - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
         repository: jai3747/imdb-clone-server
         token: ${{ secrets.GH_PAT }}
+        path: backend
         clean: true
         fetch-depth: 1
-        ref: main  # Explicitly checkout the main branch
+        ref: main
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: "18"
         cache: 'npm'
-        cache-dependency-path: './package-lock.json'
+        cache-dependency-path: './backend/package-lock.json'
 
     - name: Install Backend Dependencies
+      working-directory: ./backend
       run: |
         npm install
         npm cache verify
@@ -443,11 +463,57 @@ jobs:
     - name: Build and Push Backend Image
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: ./backend
         push: true
-        tags: ${{ env.BACKEND_IMAGE }}:latest
+        tags: |
+          ${{ env.BACKEND_IMAGE }}:latest
+          ${{ env.BACKEND_IMAGE }}:${{ steps.timestamp.outputs.timestamp }}
         build-args: |
           NODE_ENV=production
-        # Disable cache usage to ensure fresh builds
         no-cache: true
         pull: true
+        
+  # Deploy to Kubernetes
+  deploy:
+    name: 🚢 Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [frontend-build, backend-build]
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+        
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Configure kubectl
+      run: |
+        gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} --zone ${{ env.CLUSTER_ZONE }} --project ${{ env.GCP_PROJECT_ID }}
+        
+    - name: Generate deploy timestamp
+      id: timestamp
+      run: echo "timestamp=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+        
+    - name: Deploy with Helm
+      run: |
+        helm upgrade --install imdb-clone ${{ env.CHART_PATH }} \
+          --set frontend.image.repository=${{ env.FRONTEND_IMAGE }} \
+          --set frontend.image.tag=latest \
+          --set backend.image.repository=${{ env.BACKEND_IMAGE }} \
+          --set backend.image.tag=latest \
+          --set backend.mongoUrl=${{ secrets.MONGO_URL }} \
+          --set global.domain=${{ env.APP_DOMAIN }} \
+          --set global.deployTime="${{ steps.timestamp.outputs.timestamp }}"
+        
+    - name: Verify Deployment
+      run: |
+        kubectl get pods
+        kubectl get svc
+        echo "Deployment completed successfully at $(date)"
