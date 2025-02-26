@@ -22,7 +22,7 @@ env:
   BACKEND_IMAGE: jai3747/imdb-clone-backend-prod
   HELM_VERSION: v3.12.0
   CHART_PATH: ./imdb-clone
-  BACKEND_API_URL: http://imdb-clone-backend.default.svc.cluster.local:5000
+  BACKEND_API_URL: https://imdb-backend.jayachandran.xyz:5000
   DEBUG_WORKFLOW: 'true'
 
 jobs:
