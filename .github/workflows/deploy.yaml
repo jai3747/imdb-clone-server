@@ -1,3 +1,564 @@
+# name: CI/CD Pipeline
+
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
+
+# env:
+#   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+#   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+#   MONGO_URL: ${{ secrets.MONGO_URL }}
+#   SEMGREP_TOKEN: ${{ secrets.SEMGREP_TOKEN }}
+#   SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+#   CLUSTER_NAME: cluster-1
+#   CLUSTER_ZONE: asia-south1-a
+#   APP_DOMAIN: http://myapp.jayachandran.xyz
+#   # Update with your current repository names if different
+#   FRONTEND_REPO: jai3747/imdb-clone-client
+#   BACKEND_REPO: jai3747/imdb-clone-server
+#   FRONTEND_IMAGE: jai3747/imdb-clone-frontend-prod
+#   BACKEND_IMAGE: jai3747/imdb-clone-backend-prod
+#   HELM_VERSION: v3.12.0
+#   CHART_PATH: ./imdb-clone
+#   BACKEND_API_URL: https://imdb-backend.jayachandran.xyz:5000
+#   DEBUG_WORKFLOW: 'true'
+
+# jobs:
+#   # Frontend Security Scans
+#   frontend-trufflehog:
+#     name: 🐷 Frontend TruffleHog
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         fetch-depth: 0
+#         ref: main
+
+#     - name: TruffleHog Scan
+#       uses: trufflesecurity/trufflehog@v3.63.3
+#       continue-on-error: true
+#       with:
+#         path: $HOME/fresh-workspace/frontend
+#         base: ${{ github.event.before }}
+#         head: ${{ github.sha }}
+#         extra_args: --json --output $HOME/fresh-workspace/trufflehog-frontend-report.json
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: frontend-trufflehog-report
+#         path: $HOME/fresh-workspace/trufflehog-frontend-report.json
+#         retention-days: 30
+
+#   frontend-semgrep:
+#     name: 🔍 Frontend Semgrep
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         ref: main
+
+#     - name: Semgrep Scan
+#       uses: semgrep/semgrep-action@v1
+#       continue-on-error: true
+#       with:
+#         config: p/javascript
+#         output: $HOME/fresh-workspace/semgrep-frontend-results.json
+#         json: true
+#         publishToken: ${{ secrets.SEMGREP_TOKEN }}
+#         publishDeployment: 123
+#         workdir: $HOME/fresh-workspace/frontend
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: frontend-semgrep-report
+#         path: $HOME/fresh-workspace/semgrep-frontend-results.json
+#         retention-days: 30
+
+#   frontend-snyk:
+#     name: 🛡️ Frontend Snyk
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         ref: main
+
+#     - name: Snyk Scan
+#       uses: snyk/actions/node@master
+#       continue-on-error: true
+#       env:
+#         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+#       with:
+#         command: test --json > $HOME/fresh-workspace/snyk-frontend-report.json
+#         args: --all-projects --sarif-file-output=$HOME/fresh-workspace/snyk.sarif
+#         working-directory: $HOME/fresh-workspace/frontend
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: frontend-snyk-report
+#         path: $HOME/fresh-workspace/snyk-frontend-report.json
+#         retention-days: 30
+
+#   frontend-checkov:
+#     name: 🏗️ Frontend Checkov
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         ref: main
+
+#     - name: Checkov Scan
+#       uses: bridgecrewio/checkov-action@v12
+#       continue-on-error: true
+#       with:
+#         directory: $HOME/fresh-workspace/frontend
+#         framework: dockerfile,kubernetes,secrets
+#         output: json
+#         output-file-path: $HOME/fresh-workspace/checkov-frontend-report.json
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: frontend-checkov-report
+#         path: $HOME/fresh-workspace/checkov-frontend-report.json
+#         retention-days: 30
+
+#   frontend-kubesec:
+#     name: 🎯 Frontend Kubesec
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend $HOME/fresh-workspace/reports
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         ref: main
+
+#     - name: Install kubesec
+#       run: |
+#         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
+#         tar xzf kubesec_linux_amd64.tar.gz
+#         sudo mv kubesec /usr/local/bin/
+
+#     - name: Run kubesec scans
+#       continue-on-error: true
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/reports
+#         cd $HOME/fresh-workspace/frontend
+#         for file in backup.yaml backup-pipeline.yaml pipeline.yaml; do
+#           if [ -f "$file" ]; then
+#             kubesec scan -f json "$file" > "$HOME/fresh-workspace/reports/kubesec-frontend-$(basename "$file" .yaml)-report.json" || true
+#           fi
+#         done
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: frontend-kubesec-reports
+#         path: $HOME/fresh-workspace/reports/
+#         retention-days: 30
+
+#   # Backend Security Scans
+#   backend-trufflehog:
+#     name: 🐷 Backend TruffleHog
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         fetch-depth: 0
+#         ref: main
+
+#     - name: TruffleHog Scan
+#       uses: trufflesecurity/trufflehog@v3.63.3
+#       continue-on-error: true
+#       with:
+#         path: $HOME/fresh-workspace/backend
+#         base: ${{ github.event.before }}
+#         head: ${{ github.sha }}
+#         extra_args: --json --output $HOME/fresh-workspace/trufflehog-backend-report.json
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: backend-trufflehog-report
+#         path: $HOME/fresh-workspace/trufflehog-backend-report.json
+#         retention-days: 30
+
+#   backend-semgrep:
+#     name: 🔍 Backend Semgrep
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         ref: main
+
+#     - name: Semgrep Scan
+#       uses: semgrep/semgrep-action@v1
+#       continue-on-error: true
+#       with:
+#         config: p/javascript
+#         output: $HOME/fresh-workspace/semgrep-backend-results.json
+#         json: true
+#         publishToken: ${{ secrets.SEMGREP_TOKEN }}
+#         publishDeployment: 123
+#         workdir: $HOME/fresh-workspace/backend
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: backend-semgrep-report
+#         path: $HOME/fresh-workspace/semgrep-backend-results.json
+#         retention-days: 30
+
+#   backend-snyk:
+#     name: 🛡️ Backend Snyk
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         ref: main
+
+#     - name: Snyk Scan
+#       uses: snyk/actions/node@master
+#       continue-on-error: true
+#       env:
+#         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+#       with:
+#         command: test --json > $HOME/fresh-workspace/snyk-backend-report.json
+#         args: --all-projects --sarif-file-output=$HOME/fresh-workspace/snyk.sarif
+#         working-directory: $HOME/fresh-workspace/backend
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: backend-snyk-report
+#         path: $HOME/fresh-workspace/snyk-backend-report.json
+#         retention-days: 30
+
+#   backend-checkov:
+#     name: 🏗️ Backend Checkov
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         ref: main
+
+#     - name: Checkov Scan
+#       uses: bridgecrewio/checkov-action@v12
+#       continue-on-error: true
+#       with:
+#         directory: $HOME/fresh-workspace/backend
+#         framework: dockerfile,kubernetes,secrets
+#         output: json
+#         output-file-path: $HOME/fresh-workspace/checkov-backend-report.json
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: backend-checkov-report
+#         path: $HOME/fresh-workspace/checkov-backend-report.json
+#         retention-days: 30
+
+#   backend-kubesec:
+#     name: 🎯 Backend Kubesec
+#     runs-on: ubuntu-latest
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend $HOME/fresh-workspace/main-repo $HOME/fresh-workspace/reports
+#         cd $HOME/fresh-workspace
+
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         ref: main
+
+#     - name: Checkout Main Repo for Helm Charts
+#       uses: actions/checkout@v4
+#       with:
+#         path: $HOME/fresh-workspace/main-repo
+#         ref: main
+
+#     - name: Install kubesec
+#       run: |
+#         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
+#         tar xzf kubesec_linux_amd64.tar.gz
+#         sudo mv kubesec /usr/local/bin/
+
+#     - name: Install Helm
+#       uses: azure/setup-helm@v3
+#       with:
+#         version: 'v3.12.3'
+
+#     - name: Create merged Helm templates
+#       run: |
+#         if [ -d "$HOME/fresh-workspace/main-repo/imdb-clone" ]; then
+#           cd $HOME/fresh-workspace/main-repo
+#           helm template imdb-clone ./imdb-clone > $HOME/fresh-workspace/all-manifests.yaml || true
+#         else
+#           echo "Helm chart directory not found, skipping helm template scan"
+#         fi
+
+#     - name: Run kubesec scans
+#       continue-on-error: true
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/reports
+#         cd $HOME/fresh-workspace/backend
+#         for file in k8.yaml test-working-fine.yaml all-tested-pipeline.yaml; do
+#           if [ -f "$file" ]; then
+#             kubesec scan -f json "$file" > "$HOME/fresh-workspace/reports/kubesec-backend-$(basename "$file" .yaml)-report.json" || true
+#           fi
+#         done
+        
+#         if [ -f "$HOME/fresh-workspace/all-manifests.yaml" ]; then
+#           kubesec scan -f json $HOME/fresh-workspace/all-manifests.yaml > $HOME/fresh-workspace/reports/kubesec-backend-helm-report.json || true
+#         fi
+
+#     - name: Upload Results
+#       uses: actions/upload-artifact@v4
+#       with:
+#         name: backend-kubesec-reports
+#         path: $HOME/fresh-workspace/reports/
+#         retention-days: 30
+  
+#   frontend-build:
+#     name: 🚀 Frontend Build & Push
+#     runs-on: ubuntu-latest
+#     needs: [frontend-trufflehog, frontend-semgrep, frontend-snyk, frontend-checkov, frontend-kubesec]
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/frontend
+#         cd $HOME/fresh-workspace
+      
+#     # Fresh checkout of the frontend repository
+#     - name: Checkout Latest Frontend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.FRONTEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/frontend
+#         fetch-depth: 1
+#         ref: main
+
+#     - name: Verify clean checkout
+#       run: |
+#         echo "Current directory structure:"
+#         find $HOME/fresh-workspace -type d | sort
+#         echo "Frontend directory content:"
+#         find $HOME/fresh-workspace/frontend -maxdepth 1 -type f | sort
+      
+#     - name: Setup Node.js
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: "18"
+#         # Fixed: Removed the invalid 'cache: none' parameter
+
+#     - name: Install Frontend Dependencies
+#       working-directory: $HOME/fresh-workspace/frontend
+#       run: |
+#         # Make sure there's no node_modules
+#         rm -rf node_modules || true
+#         # Install dependencies without using cache
+#         npm ci --legacy-peer-deps
+    
+#     # Configure API endpoint for production
+#     - name: Configure Environment
+#       working-directory: $HOME/fresh-workspace/frontend
+#       run: |
+#         echo "Configuring API endpoint for production"
+#         # Create or update .env file with the backend service URL
+#         echo "REACT_APP_API_URL=${{ env.BACKEND_API_URL }}" > .env
+#         echo "REACT_APP_API_TIMEOUT=30000" >> .env
+#         echo "Environment configuration:"
+#         cat .env
+    
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v3
+#       with:
+#         buildkitd-flags: --debug
+
+#     - name: Login to DockerHub
+#       uses: docker/login-action@v3
+#       with:
+#         username: ${{ secrets.DOCKER_USERNAME }}
+#         password: ${{ secrets.DOCKER_PASSWORD }}
+
+#     - name: Generate build timestamp
+#       id: timestamp
+#       run: echo "timestamp=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+
+#     - name: Build and Push Frontend Image
+#       uses: docker/build-push-action@v5
+#       with:
+#         context: $HOME/fresh-workspace/frontend
+#         push: true
+#         tags: |
+#           ${{ env.FRONTEND_IMAGE }}:latest
+#           ${{ env.FRONTEND_IMAGE }}:${{ steps.timestamp.outputs.timestamp }}
+#         build-args: |
+#           NODE_ENV=production
+#           REACT_APP_API_URL=${{ env.BACKEND_API_URL }}
+#           REACT_APP_API_TIMEOUT=30000
+#         no-cache: true
+#         pull: true
+
+#   # Build the backend image from latest code
+#   backend-build:
+#     name: 🚀 Backend Build & Push
+#     runs-on: ubuntu-latest
+#     needs: [backend-trufflehog, backend-semgrep, backend-snyk, backend-checkov, backend-kubesec]
+#     steps:
+#     - name: Create clean working directory
+#       run: |
+#         mkdir -p $HOME/fresh-workspace/backend
+#         cd $HOME/fresh-workspace
+    
+#     # Fresh checkout of the backend repository
+#     - name: Checkout Latest Backend Code
+#       uses: actions/checkout@v4
+#       with:
+#         repository: ${{ env.BACKEND_REPO }}
+#         token: ${{ secrets.GH_PAT }}
+#         path: $HOME/fresh-workspace/backend
+#         fetch-depth: 1
+#         ref: main
+
+#     - name: Verify clean checkout
+#       run: |
+#         echo "Current directory structure:"
+#         find $HOME/fresh-workspace -type d | sort
+#         echo "Backend directory content:"
+#         find $HOME/fresh-workspace/backend -maxdepth 1 -type f | sort
+
+#     - name: Setup Node.js
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: "18"
+#         # Fixed: Removed the invalid 'cache: none' parameter
+
+#     - name: Install Backend Dependencies
+#       working-directory: $HOME/fresh-workspace/backend
+#       run: |
+#         # Make sure there's no node_modules
+#         rm -rf node_modules || true
+#         # Install dependencies without using cache
+#         npm ci
+    
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v3
+#       with:
+#         buildkitd-flags: --debug
+
+#     - name: Login to DockerHub
+#       uses: docker/login-action@v3
+#       with:
+#         username: ${{ secrets.DOCKER_USERNAME }}
+#         password: ${{ secrets.DOCKER_PASSWORD }}
+
+#     - name: Generate build timestamp
+#       id: timestamp
+#       run: echo "timestamp=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
+
+#     - name: Build and Push Backend Image
+#       uses: docker/build-push-action@v5
+#       with:
+#         context: $HOME/fresh-workspace/backend
+#         push: true
+#         tags: |
+#           ${{ env.BACKEND_IMAGE }}:latest
+#           ${{ env.BACKEND_IMAGE }}:${{ steps.timestamp.outputs.timestamp }}
+#         build-args: |
+#           NODE_ENV=production
+#           MONGO_URL=${{ secrets.MONGO_URL }}
+#         no-cache: true
+#         pull: true
+        
 name: CI/CD Pipeline
 
 on:
@@ -35,7 +596,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/frontend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -69,7 +629,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/frontend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -104,7 +663,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/frontend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -138,7 +696,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/frontend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -171,7 +728,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/frontend $HOME/fresh-workspace/reports
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Frontend Code
       uses: actions/checkout@v4
       with:
@@ -185,7 +741,6 @@ jobs:
         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
         tar xzf kubesec_linux_amd64.tar.gz
         sudo mv kubesec /usr/local/bin/
-
     - name: Run kubesec scans
       continue-on-error: true
       run: |
@@ -196,7 +751,6 @@ jobs:
             kubesec scan -f json "$file" > "$HOME/fresh-workspace/reports/kubesec-frontend-$(basename "$file" .yaml)-report.json" || true
           fi
         done
-
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -213,7 +767,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/backend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -247,7 +800,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/backend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -282,7 +834,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/backend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -316,7 +867,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/backend
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -349,7 +899,6 @@ jobs:
       run: |
         mkdir -p $HOME/fresh-workspace/backend $HOME/fresh-workspace/main-repo $HOME/fresh-workspace/reports
         cd $HOME/fresh-workspace
-
     - name: Checkout Latest Backend Code
       uses: actions/checkout@v4
       with:
@@ -369,7 +918,6 @@ jobs:
         wget https://github.com/controlplaneio/kubesec/releases/download/v2.11.5/kubesec_linux_amd64.tar.gz
         tar xzf kubesec_linux_amd64.tar.gz
         sudo mv kubesec /usr/local/bin/
-
     - name: Install Helm
       uses: azure/setup-helm@v3
       with:
@@ -383,7 +931,6 @@ jobs:
         else
           echo "Helm chart directory not found, skipping helm template scan"
         fi
-
     - name: Run kubesec scans
       continue-on-error: true
       run: |
@@ -398,7 +945,6 @@ jobs:
         if [ -f "$HOME/fresh-workspace/all-manifests.yaml" ]; then
           kubesec scan -f json $HOME/fresh-workspace/all-manifests.yaml > $HOME/fresh-workspace/reports/kubesec-backend-helm-report.json || true
         fi
-
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
@@ -437,15 +983,19 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: "18"
-        # Fixed: Removed the invalid 'cache: none' parameter
+        cache: 'npm'
+        cache-dependency-path: $HOME/fresh-workspace/frontend/package-lock.json
 
+    - name: Clean npm cache
+      run: npm cache clean --force
+      
     - name: Install Frontend Dependencies
       working-directory: $HOME/fresh-workspace/frontend
       run: |
         # Make sure there's no node_modules
         rm -rf node_modules || true
         # Install dependencies without using cache
-        npm ci --legacy-peer-deps
+        npm ci --no-cache --legacy-peer-deps
     
     # Configure API endpoint for production
     - name: Configure Environment
@@ -485,6 +1035,8 @@ jobs:
           NODE_ENV=production
           REACT_APP_API_URL=${{ env.BACKEND_API_URL }}
           REACT_APP_API_TIMEOUT=30000
+        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
+        cache-to: type=inline
         no-cache: true
         pull: true
 
@@ -515,20 +1067,24 @@ jobs:
         find $HOME/fresh-workspace -type d | sort
         echo "Backend directory content:"
         find $HOME/fresh-workspace/backend -maxdepth 1 -type f | sort
-
+      
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: "18"
-        # Fixed: Removed the invalid 'cache: none' parameter
+        cache: 'npm'
+        cache-dependency-path: $HOME/fresh-workspace/backend/package-lock.json
 
+    - name: Clean npm cache
+      run: npm cache clean --force
+      
     - name: Install Backend Dependencies
       working-directory: $HOME/fresh-workspace/backend
       run: |
         # Make sure there's no node_modules
         rm -rf node_modules || true
         # Install dependencies without using cache
-        npm ci
+        npm ci --no-cache
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -556,6 +1112,7 @@ jobs:
         build-args: |
           NODE_ENV=production
           MONGO_URL=${{ secrets.MONGO_URL }}
+        cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+        cache-to: type=inline
         no-cache: true
         pull: true
-        
