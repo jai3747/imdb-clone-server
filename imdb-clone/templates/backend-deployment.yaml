@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "imdb-clone.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PORT
+          value: "5000"
+        - name: NODE_ENV
+          value: {{ .Values.global.environment }}
+        - name: MONGO_URL
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: MONGO_URL
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: {{ .Values.backend.probes.readiness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.backend.probes.readiness.periodSeconds }}
+          timeoutSeconds: {{ .Values.backend.probes.readiness.timeoutSeconds }}
+          failureThreshold: {{ .Values.backend.probes.readiness.failureThreshold }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: {{ .Values.backend.probes.liveness.initialDelaySeconds }}
+          periodSeconds: {{ .Values.backend.probes.liveness.periodSeconds }}
+          timeoutSeconds: {{ .Values.backend.probes.liveness.timeoutSeconds }}
+          failureThreshold: {{ .Values.backend.probes.liveness.failureThreshold }}
+        resources:
+          requests:
+            memory: {{ .Values.backend.resources.requests.memory | quote }}
+            cpu: {{ .Values.backend.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.backend.resources.limits.memory | quote }}
+            cpu: {{ .Values.backend.resources.limits.cpu | quote }}
