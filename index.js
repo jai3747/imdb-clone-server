@@ -1,4 +1,4 @@
- //backednd/index.js
+//  //backednd/index.js
 const express = require("express");
 const mongoose = require("mongoose");
 require("dotenv").config();
@@ -12,10 +12,24 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://imdb-frontend.jayachandran.xyz",
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
+// Root endpoint
+app.get("/", (req, res) => {
+  res.json({
+    message: "IMDB Clone API - Welcome",
+    version: "1.0.0",
+    endpoints: {
+      health: "/health",
+      actors: "/actors",
+      movies: "/movies",
+      producers: "/producers"
+    }
+  });
+});
 
 // Health check endpoint
 app.get("/health", async (req, res) => {

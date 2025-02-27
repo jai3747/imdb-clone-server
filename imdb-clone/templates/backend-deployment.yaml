@@ -1,9 +1,12 @@
+# templates/backend-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend-deployment
   namespace: {{ .Values.global.namespace }}
   labels:
+    app: imdb-clone
+    component: backend
     {{- include "imdb-clone.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.backend.replicaCount }}
@@ -31,6 +34,8 @@ spec:
             secretKeyRef:
               name: mongodb-secret
               key: MONGO_URL
+        - name: FRONTEND_URL
+          value: "http://{{ .Values.ingress.frontendHost }}"
         readinessProbe:
           httpGet:
             path: /health

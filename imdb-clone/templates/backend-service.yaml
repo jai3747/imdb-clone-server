@@ -4,10 +4,15 @@ kind: Service
 metadata:
   name: backend-service
   namespace: {{ .Values.global.namespace }}
+  labels:
+    app: imdb-clone
+    component: backend
+    {{- include "imdb-clone.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.backend.service.type }}
+  selector:
+    app: backend
   ports:
   - port: {{ .Values.backend.service.port }}
     targetPort: 5000
-  selector:
-    app: backend
+    protocol: TCP
+  type: {{ .Values.backend.service.type }}

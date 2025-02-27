@@ -4,10 +4,15 @@ kind: Service
 metadata:
   name: frontend-service
   namespace: {{ .Values.global.namespace }}
+  labels:
+    app: imdb-clone
+    component: frontend
+    {{- include "imdb-clone.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.frontend.service.type }}
-  ports:
-  - port: {{ .Values.frontend.service.port }}
-    targetPort: {{ .Values.frontend.service.targetPort }}
   selector:
     app: frontend
+  ports:
+  - port: {{ .Values.frontend.service.port }}
+    targetPort: 3000
+    protocol: TCP
+  type: {{ .Values.frontend.service.type }}

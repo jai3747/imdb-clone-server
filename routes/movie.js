@@ -1,4 +1,4 @@
-// src/routes/movie.js
+// // src/routes/movie.js
 const Movie = require("../models/movieSchema");
 const router = require("express").Router();
 
@@ -17,29 +17,41 @@ router.get("/status", async (req, res) => {
   }
 });
 
+// Get all movies
 router.get("/", async (req, res) => {
   try {
     const movies = await Movie.find().populate("actors").populate("producer");
     res.json(movies);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to fetch movies"
+    });
   }
 });
 
+// Get movie by ID
 router.get("/:id", async (req, res) => {
   try {
     const movie = await Movie.findById(req.params.id).populate("actors").populate("producer");
     if (!movie) {
-      return res.status(404).json({ message: "Movie not found" });
+      return res.status(404).json({ 
+        status: "error", 
+        message: "Movie not found" 
+      });
     }
     res.json(movie);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to fetch movie"
+    });
   }
 });
 
+// Add a new movie
 router.post("/add-movie", async (req, res) => {
   try {
     const { name, desc, director, yearOfRelease, poster, producer, actors } = req.body;
@@ -53,13 +65,20 @@ router.post("/add-movie", async (req, res) => {
       actors,
     });
     await movie.save();
-    res.json(movie);
+    res.status(201).json({
+      status: "success",
+      data: movie
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to add movie"
+    });
   }
 });
 
+// Update a movie
 router.put("/edit-movie/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -77,10 +96,24 @@ router.put("/edit-movie/:id", async (req, res) => {
       },
       { new: true }
     );
-    res.json(updatedMovie);
+    
+    if (!updatedMovie) {
+      return res.status(404).json({
+        status: "error",
+        message: "Movie not found"
+      });
+    }
+    
+    res.json({
+      status: "success",
+      data: updatedMovie
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to update movie"
+    });
   }
 });
 
@@ -88,11 +121,25 @@ router.put("/edit-movie/:id", async (req, res) => {
 router.delete("/delete-movie/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await Movie.findByIdAndDelete(id);
-    res.json({ message: "Movie deleted successfully" });
+    const deletedMovie = await Movie.findByIdAndDelete(id);
+    
+    if (!deletedMovie) {
+      return res.status(404).json({
+        status: "error",
+        message: "Movie not found"
+      });
+    }
+    
+    res.json({ 
+      status: "success",
+      message: "Movie deleted successfully" 
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Server Error");
+    res.status(500).json({
+      status: "error",
+      message: err.message || "Failed to delete movie"
+    });
   }
 });
 
