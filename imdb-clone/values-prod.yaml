@@ -100,8 +100,8 @@ global:
   environment: prod
 
 ingress:
-  frontendHost: "http://imdb-dev-frontend.jayachandram.xyz"
-  backendHost: "http://imdb-dev-backend.jayachandram.xyz"
+  frontendHost: "http://imdb-dev-frontend.jayachandran.xyz"
+  backendHost: "http://imdb-dev-backend.jayachandran.xyz"
 
 mongodb:
   image:
